@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>O/L Result Live Monitor</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+    <style>
+        :root[data-theme="dark"] {
+            --bg: #060b14;
+            --surface: #0d1726;
+            --surface2: #111e33;
+            --border: #1e3a5f;
+            --accent: #00d4ff;
+            --accent2: #00ff9d;
+            --danger: #ff4757;
+            --warn: #ffa502;
+            --text: #e8f4fd;
+            --muted: #4a7fa5;
+            --glow: rgba(0,212,255,0.15);
+        }
+        :root[data-theme="light"] {
+            --bg: #f0f6ff;
+            --surface: #ffffff;
+            --surface2: #e8f2ff;
+            --border: #b8d4f0;
+            --accent: #0077cc;
+            --accent2: #00aa66;
+            --danger: #dd2244;
+            --warn: #cc7700;
+            --text: #0d1726;
+            --muted: #4a7fa5;
+            --glow: rgba(0,119,204,0.1);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'JetBrains Mono', monospace;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            transition: background 0.4s, color 0.4s;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        /* Animated grid background */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image:
+                linear-gradient(var(--border) 1px, transparent 1px),
+                linear-gradient(90deg, var(--border) 1px, transparent 1px);
+            background-size: 40px 40px;
+            opacity: 0.15;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .dashboard {
+            position: relative;
+            z-index: 1;
+            background: var(--surface);
+            border-radius: 20px;
+            padding: 32px 28px;
+            width: 100%;
+            max-width: 520px;
+            border: 1px solid var(--border);
+            box-shadow: 0 0 40px var(--glow), 0 20px 60px rgba(0,0,0,0.4);
+        }
+
+        /* Header row */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 28px;
+        }
+
+        .title-group h1 {
+            font-family: 'Syne', sans-serif;
+            font-size: 22px;
+            font-weight: 800;
+            color: var(--accent);
+            letter-spacing: -0.5px;
+            text-shadow: 0 0 20px var(--accent);
+        }
+        .title-group p {
+            font-size: 10px;
+            color: var(--muted);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-top: 2px;
+        }
+
+        .header-controls {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        /* Theme Toggle */
+        .theme-toggle {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 50px;
+            padding: 6px 14px;
+            cursor: pointer;
+            font-size: 18px;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--text);
+        }
+        .theme-toggle:hover { border-color: var(--accent); box-shadow: 0 0 10px var(--glow); }
+        .theme-label { font-size: 10px; letter-spacing: 1px; font-family: 'JetBrains Mono', monospace; }
+
+        /* Status card */
+        .status-card {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 22px 20px;
+            margin-bottom: 16px;
+            position: relative;
+            overflow: hidden;
+        }
+        .status-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, var(--accent), var(--accent2));
+        }
+
+        .card-label {
+            font-size: 10px;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .pulse {
+            width: 8px; height: 8px;
+            background: var(--accent2);
+            border-radius: 50%;
+            animation: pulse-anim 1.5s infinite;
+            flex-shrink: 0;
+        }
+        @keyframes pulse-anim {
+            0%, 100% { opacity: 0.3; transform: scale(0.8); }
+            50% { opacity: 1; transform: scale(1.2); box-shadow: 0 0 8px var(--accent2); }
+        }
+
+        .card-value {
+            font-family: 'Syne', sans-serif;
+            font-size: 36px;
+            font-weight: 800;
+            color: var(--accent2);
+            letter-spacing: -1px;
+            transition: color 0.3s;
+        }
+        .card-value.alert { color: var(--danger); text-shadow: 0 0 20px var(--danger); }
+
+        /* Notification permission banner */
+        #notif-banner {
+            background: linear-gradient(135deg, rgba(0,212,255,0.08), rgba(0,255,157,0.08));
+            border: 1px solid var(--accent);
+            border-radius: 10px;
+            padding: 10px 14px;
+            font-size: 11px;
+            color: var(--accent);
+            margin-bottom: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+        }
+        #notif-banner.hidden { display: none; }
+        .notif-enable-btn {
+            background: var(--accent);
+            color: var(--bg);
+            border: none;
+            padding: 5px 12px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            font-family: 'JetBrains Mono', monospace;
+            white-space: nowrap;
+        }
+
+        /* Settings grid */
+        .settings-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .setting-card {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px 14px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            transition: border-color 0.3s;
+        }
+        .setting-card:hover { border-color: var(--accent); }
+
+        .setting-info { display: flex; align-items: center; gap: 8px; }
+        .setting-icon { font-size: 16px; }
+        .setting-label { font-size: 10px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+
+        /* Toggle switch */
+        .toggle-wrap { position: relative; width: 38px; height: 20px; flex-shrink: 0; }
+        .toggle-wrap input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute; inset: 0;
+            background: var(--border);
+            border-radius: 20px;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+        .slider:before {
+            content: '';
+            position: absolute;
+            width: 14px; height: 14px;
+            left: 3px; top: 3px;
+            background: white;
+            border-radius: 50%;
+            transition: 0.3s;
+        }
+        input:checked + .slider { background: var(--accent); box-shadow: 0 0 10px var(--glow); }
+        input:checked + .slider:before { transform: translateX(18px); }
+
+        /* WhatsApp input */
+        .wa-input-wrap {
+            margin-bottom: 16px;
+            display: none;
+        }
+        .wa-input-wrap.visible { display: block; }
+        .input-label { font-size: 10px; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 6px; }
+        .wa-input {
+            width: 100%;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px 14px;
+            color: var(--text);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+        .wa-input:focus { border-color: var(--accent); box-shadow: 0 0 10px var(--glow); }
+        .wa-input::placeholder { color: var(--muted); }
+
+        /* Buttons */
+        .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+
+        .btn {
+            background: var(--accent);
+            color: var(--bg);
+            border: none;
+            padding: 13px 16px;
+            font-size: 13px;
+            font-weight: 700;
+            border-radius: 10px;
+            cursor: pointer;
+            font-family: 'JetBrains Mono', monospace;
+            transition: all 0.25s;
+            letter-spacing: 0.5px;
+        }
+        .btn:hover { filter: brightness(1.15); transform: translateY(-2px); box-shadow: 0 6px 20px var(--glow); }
+        .btn:active { transform: translateY(0); }
+        .btn.secondary {
+            background: var(--surface2);
+            color: var(--accent);
+            border: 1px solid var(--accent);
+        }
+        .btn.secondary:hover { background: var(--accent); color: var(--bg); }
+
+        /* Next check countdown */
+        .next-check {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 10px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            font-size: 11px;
+        }
+        .next-check-label { color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+        .next-check-val { color: var(--accent); font-weight: 700; font-size: 14px; }
+
+        /* Progress bar */
+        .progress-bar-wrap {
+            background: var(--border);
+            border-radius: 4px;
+            height: 3px;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent), var(--accent2));
+            border-radius: 4px;
+            transition: width 1s linear;
+        }
+
+        /* Log box */
+        .log-box {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 14px;
+            max-height: 140px;
+            overflow-y: auto;
+            font-size: 11px;
+            color: var(--muted);
+            scrollbar-width: thin;
+            scrollbar-color: var(--border) transparent;
+        }
+        .log-entry {
+            padding: 3px 0;
+            border-bottom: 1px solid var(--surface2);
+            line-height: 1.5;
+        }
+        .log-entry:last-child { border-bottom: none; }
+        .log-entry.success { color: var(--accent2); }
+        .log-entry.error { color: var(--danger); }
+        .log-entry.warn { color: var(--warn); }
+        .log-entry .log-time { color: var(--border); margin-right: 6px; }
+
+        /* Alert overlay */
+        .alert-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.85);
+            z-index: 999;
+            justify-content: center;
+            align-items: center;
+        }
+        .alert-overlay.show { display: flex; }
+        .alert-box {
+            background: var(--surface);
+            border: 2px solid var(--danger);
+            border-radius: 16px;
+            padding: 32px;
+            text-align: center;
+            max-width: 340px;
+            animation: pop-in 0.3s cubic-bezier(0.34,1.56,0.64,1);
+            box-shadow: 0 0 60px rgba(255,71,87,0.4);
+        }
+        @keyframes pop-in {
+            from { transform: scale(0.7); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+        .alert-icon { font-size: 52px; margin-bottom: 12px; animation: shake 0.5s ease 0.3s both; }
+        @keyframes shake {
+            0%,100%{transform:rotate(0)}20%{transform:rotate(-8deg)}40%{transform:rotate(8deg)}60%{transform:rotate(-5deg)}80%{transform:rotate(5deg)}
+        }
+        .alert-title { font-family: 'Syne', sans-serif; font-size: 22px; color: var(--danger); margin-bottom: 8px; }
+        .alert-year { font-size: 36px; font-weight: 800; color: var(--text); margin: 8px 0; }
+        .alert-sub { font-size: 12px; color: var(--muted); margin-bottom: 20px; }
+        .alert-close {
+            background: var(--danger);
+            color: white;
+            border: none;
+            padding: 10px 28px;
+            border-radius: 8px;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 700;
+            font-size: 13px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<!-- Alert Overlay -->
+<div class="alert-overlay" id="alert-overlay">
+    <div class="alert-box">
+        <div class="alert-icon">🚨</div>
+        <div class="alert-title">O/L RESULTS CHANGED!</div>
+        <div class="alert-year" id="alert-year-val">—</div>
+        <div class="alert-sub">doenets.lk හි නව O/L year detect කළා!</div>
+        <button class="alert-close" onclick="closeAlert()">✓ OK, Got It</button>
+    </div>
+</div>
+
+<div class="dashboard">
+
+    <!-- Header -->
+    <div class="header">
+        <div class="title-group">
+            <h1>⚡ O/L Monitor</h1>
+            <p>LIVE RESULT TRACKER</p>
+        </div>
+        <div class="header-controls">
+            <button class="theme-toggle" onclick="toggleTheme()" id="theme-btn">
+                <span id="theme-icon">☀️</span>
+                <span class="theme-label" id="theme-label">LIGHT</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Notification banner -->
+    <div id="notif-banner">
+        <span>🔔 Browser notifications enable කරන්නද?</span>
+        <button class="notif-enable-btn" onclick="enableNotifications()">Enable</button>
+    </div>
+
+    <!-- Current Year Card -->
+    <div class="status-card">
+        <div class="card-label">
+            <span class="pulse"></span>
+            CURRENT O/L YEAR ON SITE
+        </div>
+        <div class="card-value" id="ol-year">Loading...</div>
+    </div>
+
+    <!-- Settings Grid -->
+    <div class="settings-grid">
+        <div class="setting-card">
+            <div class="setting-info">
+                <span class="setting-icon">🔔</span>
+                <span class="setting-label">Browser<br>Notif</span>
+            </div>
+            <label class="toggle-wrap">
+                <input type="checkbox" id="toggle-notif" checked onchange="saveSetting('notif', this.checked)">
+                <span class="slider"></span>
+            </label>
+        </div>
+        <div class="setting-card">
+            <div class="setting-info">
+                <span class="setting-icon">🔊</span>
+                <span class="setting-label">Sound<br>Alert</span>
+            </div>
+            <label class="toggle-wrap">
+                <input type="checkbox" id="toggle-sound" checked onchange="saveSetting('sound', this.checked)">
+                <span class="slider"></span>
+            </label>
+        </div>
+        <div class="setting-card" style="grid-column: span 2;">
+            <div class="setting-info">
+                <span class="setting-icon">📱</span>
+                <span class="setting-label">WhatsApp Alert</span>
+            </div>
+            <label class="toggle-wrap">
+                <input type="checkbox" id="toggle-wa" onchange="toggleWA(this.checked)">
+                <span class="slider"></span>
+            </label>
+        </div>
+    </div>
+
+    <!-- WhatsApp Number Input -->
+    <div class="wa-input-wrap" id="wa-wrap">
+        <div class="input-label">📱 WhatsApp Number (with country code)</div>
+        <input class="wa-input" id="wa-number" type="tel" placeholder="e.g. +94771234567" oninput="saveSetting('waNumber', this.value)">
+        <div style="font-size:10px; color:var(--muted); margin-top:6px;">
+            ⚠️ WhatsApp Web API (wa.me) හරහා message යවනවා. Browser popup block නොකරන්න.
+        </div>
+    </div>
+
+    <!-- Next check countdown -->
+    <div class="next-check">
+        <span class="next-check-label">⏱ Next Auto-Check</span>
+        <span class="next-check-val" id="countdown">5:00</span>
+    </div>
+    <div class="progress-bar-wrap">
+        <div class="progress-bar" id="progress-bar" style="width:100%"></div>
+    </div>
+    <br>
+
+    <!-- Buttons -->
+    <div class="btn-row">
+        <button class="btn" onclick="checkExamAPI()">🔄 Check Now</button>
+        <button class="btn secondary" onclick="testAlert()">🧪 Test Alert</button>
+    </div>
+
+    <!-- Log -->
+    <div class="log-box" id="log-box">
+        <div class="log-entry">> System initializing...</div>
+    </div>
+
+</div>
+
+<script>
+    // ============ CONFIG ============
+    const TELEGRAM_TOKEN = "YOUR_TELEGRAM_BOT_TOKEN";
+    const CHAT_ID = "YOUR_TELEGRAM_CHAT_ID";
+    const TARGET_URL = "https://result.doenets.lk/result/service/examDetails";
+    const PROXY_URL = `https://api.allorigins.win/raw?url=${encodeURIComponent(TARGET_URL)}`;
+    const CHECK_INTERVAL = 300; // seconds (5 min)
+    const EXPECTED_YEAR = "2024(2025)";
+
+    // ============ STATE ============
+    let countdownVal = CHECK_INTERVAL;
+    let countdownTimer = null;
+    let settings = {
+        notif: true,
+        sound: true,
+        waNumber: '',
+        theme: 'dark'
+    };
+
+    // ============ INIT ============
+    function init() {
+        loadSettings();
+        applyTheme(settings.theme);
+        checkNotifBanner();
+        checkExamAPI();
+        startCountdown();
+    }
+
+    function loadSettings() {
+        try {
+            const saved = JSON.parse(localStorage.getItem('ol_monitor_settings') || '{}');
+            settings = { ...settings, ...saved };
+        } catch(e) {}
+        document.getElementById('toggle-notif').checked = settings.notif;
+        document.getElementById('toggle-sound').checked = settings.sound;
+        document.getElementById('wa-number').value = settings.waNumber || '';
+        if (settings.waEnabled) {
+            document.getElementById('toggle-wa').checked = true;
+            document.getElementById('wa-wrap').classList.add('visible');
+        }
+    }
+
+    function saveSetting(key, value) {
+        settings[key] = value;
+        localStorage.setItem('ol_monitor_settings', JSON.stringify(settings));
+    }
+
+    function toggleWA(checked) {
+        saveSetting('waEnabled', checked);
+        document.getElementById('wa-wrap').classList.toggle('visible', checked);
+    }
+
+    // ============ THEME ============
+    function toggleTheme() {
+        const current = document.documentElement.getAttribute('data-theme');
+        const next = current === 'dark' ? 'light' : 'dark';
+        applyTheme(next);
+        saveSetting('theme', next);
+    }
+
+    function applyTheme(theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+        document.getElementById('theme-icon').textContent = theme === 'dark' ? '☀️' : '🌙';
+        document.getElementById('theme-label').textContent = theme === 'dark' ? 'LIGHT' : 'DARK';
+    }
+
+    // ============ NOTIFICATIONS ============
+    function checkNotifBanner() {
+        if (Notification.permission === 'granted' || Notification.permission === 'denied') {
+            document.getElementById('notif-banner').classList.add('hidden');
+        }
+    }
+
+    function enableNotifications() {
+        Notification.requestPermission().then(perm => {
+            document.getElementById('notif-banner').classList.add('hidden');
+            if (perm === 'granted') {
+                addLog('Browser notifications enabled! ✓', 'success');
+            } else {
+                addLog('Notification permission denied.', 'warn');
+            }
+        });
+    }
+
+    function sendBrowserNotif(year) {
+        if (!settings.notif) return;
+        if (Notification.permission !== 'granted') return;
+        const n = new Notification('🚨 O/L Results Changed!', {
+            body: `New Year Detected: ${year}\nCheck doenets.lk now!`,
+            icon: 'https://doenets.lk/favicon.ico'
+        });
+        n.onclick = () => window.open('https://doenets.lk/examresults', '_blank');
+    }
+
+    // ============ SOUND ============
+    function playAlert() {
+        if (!settings.sound) return;
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const freqs = [880, 1100, 880, 1320];
+            freqs.forEach((freq, i) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.frequency.value = freq;
+                osc.type = 'sine';
+                const t = ctx.currentTime + i * 0.18;
+                gain.gain.setValueAtTime(0, t);
+                gain.gain.linearRampToValueAtTime(0.35, t + 0.04);
+                gain.gain.linearRampToValueAtTime(0, t + 0.16);
+                osc.start(t);
+                osc.stop(t + 0.2);
+            });
+        } catch(e) { addLog('Sound error: ' + e.message, 'warn'); }
+    }
+
+    // ============ WHATSAPP ============
+    function sendWhatsApp(year) {
+        if (!settings.waEnabled) return;
+        const num = (settings.waNumber || '').replace(/[^0-9]/g, '');
+        if (!num) { addLog('WhatsApp: No number set!', 'warn'); return; }
+        const msg = `🚨 O/L RESULTS CHANGED!\nNew Year: ${year}\nCheck: https://doenets.lk/examresults`;
+        const url = `https://wa.me/${num}?text=${encodeURIComponent(msg)}`;
+        window.open(url, '_blank');
+        addLog(`WhatsApp message opened for +${num}`, 'success');
+    }
+
+    // ============ TELEGRAM ============
+    function sendTelegramAlert(year) {
+        if (TELEGRAM_TOKEN === "YOUR_TELEGRAM_BOT_TOKEN") return;
+        const msg = `🚨 O/L RESULTS UPDATED! New Year: ${year}\nCheck: https://doenets.lk/examresults`;
+        const url = `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage?chat_id=${CHAT_ID}&text=${encodeURIComponent(msg)}`;
+        fetch(url).then(() => addLog("Telegram alert sent!", 'success'));
+    }
+
+    // ============ API CHECK ============
+    async function checkExamAPI() {
+        addLog("Fetching exam details...");
+        try {
+            const response = await fetch(PROXY_URL);
+            if (!response.ok) throw new Error('Network error: ' + response.status);
+            const data = await response.json();
+            const currentOlYear = data.yearOlResult;
+
+            document.getElementById('ol-year').innerText = currentOlYear;
+            addLog(`Success → Year: ${currentOlYear}`, 'success');
+
+            if (currentOlYear !== EXPECTED_YEAR) {
+                triggerAllAlerts(currentOlYear);
+            } else {
+                document.getElementById('ol-year').classList.remove('alert');
+            }
+        } catch (error) {
+            addLog("❌ Error: " + error.message, 'error');
+            document.getElementById('ol-year').innerText = "Error";
+        }
+        resetCountdown();
+    }
+
+    function triggerAllAlerts(year) {
+        document.getElementById('ol-year').classList.add('alert');
+        document.getElementById('alert-year-val').innerText = year;
+        document.getElementById('alert-overlay').classList.add('show');
+        addLog(`🚨 YEAR CHANGED → ${year}`, 'warn');
+        playAlert();
+        sendBrowserNotif(year);
+        sendWhatsApp(year);
+        sendTelegramAlert(year);
+    }
+
+    function closeAlert() {
+        document.getElementById('alert-overlay').classList.remove('show');
+    }
+
+    function testAlert() {
+        addLog('Running test alert...', 'warn');
+        triggerAllAlerts('TEST(2025)');
+    }
+
+    // ============ COUNTDOWN ============
+    function startCountdown() {
+        countdownVal = CHECK_INTERVAL;
+        countdownTimer = setInterval(() => {
+            countdownVal--;
+            updateCountdownUI();
+            if (countdownVal <= 0) {
+                checkExamAPI();
+            }
+        }, 1000);
+    }
+
+    function resetCountdown() {
+        countdownVal = CHECK_INTERVAL;
+        updateCountdownUI();
+    }
+
+    function updateCountdownUI() {
+        const m = Math.floor(countdownVal / 60);
+        const s = countdownVal % 60;
+        document.getElementById('countdown').textContent =
+            `${m}:${String(s).padStart(2,'0')}`;
+        const pct = (countdownVal / CHECK_INTERVAL) * 100;
+        document.getElementById('progress-bar').style.width = pct + '%';
+    }
+
+    // ============ LOGGING ============
+    function addLog(message, type = '') {
+        const logBox = document.getElementById('log-box');
+        const time = new Date().toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+        const div = document.createElement('div');
+        div.className = 'log-entry' + (type ? ' ' + type : '');
+        div.innerHTML = `<span class="log-time">[${time}]</span> ${message}`;
+        logBox.appendChild(div);
+        logBox.scrollTop = logBox.scrollHeight;
+        // Keep max 30 entries
+        while (logBox.children.length > 30) logBox.removeChild(logBox.firstChild);
+    }
+
+    // ============ START ============
+    init();
+</script>
+</body>
+</html>
